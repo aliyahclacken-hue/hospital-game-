@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hospital Doctor Simulator Full Living Hospital</title>
+<style>
+:root{
+  --bg:#07151f;--panel:#102637;--panel2:#17364b;--text:#f7fbff;--muted:#c9dceb;
+  --accent:#9ee7ff;--danger:#ffb4b4;--warn:#ffe2a8;--good:#bdf8c8;--btn:#1f4a67;--btn2:#2b688f;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);line-height:1.45}
+header{position:sticky;top:0;background:#081d2b;border-bottom:1px solid #2e5367;padding:12px;z-index:3}
+main{max-width:1040px;margin:0 auto 80px;padding:12px}
+.card{background:var(--panel);border:1px solid #294b60;border-radius:14px;margin:10px 0;padding:13px}
+.card2{background:var(--panel2)}
+h1,h2,h3{margin:0 0 8px}
+.small{font-size:15px;color:var(--muted)}
+button,input,textarea,select{font-size:18px;border-radius:12px;border:1px solid #5f8da6}
+button{background:var(--btn);color:var(--text);min-height:52px;padding:11px 13px;margin:3px;cursor:pointer;text-align:left;width:100%}
+button:focus,button:hover{background:var(--btn2);outline:3px solid var(--accent)}
+button.smallButton{width:auto;min-height:44px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:4px}.row button{width:auto}
+textarea,input,select{background:#071b27;color:var(--text);width:100%;padding:12px;margin:6px 0}
+textarea{min-height:90px}
+.good{color:var(--good)}.warn{color:var(--warn)}.danger{color:var(--danger)}
+.held{font-weight:bold;color:var(--accent)}.bigAlert{font-size:19px;font-weight:bold}
+.log{max-height:340px;overflow:auto}.log div{border-bottom:1px solid #24475c;padding:6px}
+.patient{border-left:5px solid #5f8da6}.critical{border-left-color:#ff7777}.urgent{border-left-color:#ffe082}.stable{border-left-color:#8df0a1}
+.tag{display:inline-block;background:#071b27;border:1px solid #33556b;border-radius:999px;padding:5px 9px;margin:3px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+<h1>Hospital Doctor Simulator</h1>
+<div id="status" class="small">Loading...</div>
+</header>
+<main id="app"></main>
+
+<script>
+const SOUND={
+ ambulance:'u_xg7ssi08yr-ambulance-siren-363656.mp3',
+ alarm:'soundsgoodmusic-alarm-2-375697.mp3',
+ baby:'dragon-studio-baby-crying-463213.mp3',
+ bell:'universfield-clear-bell-chime-487898.mp3',
+ callBell:'dragon-studio-doorbell-ding-dong-482879.mp3',
+ defib:'freesound_community-defibrillator-6961.mp3',
+ door:'freesound_community-main-door-opening-closing-38280.mp3',
+ knock:'bromiespectactular-knocking-on-door-266504.mp3',
+ footsteps:'freesoundsxx-walking-on-concrete-ver-2-268513.mp3',
+ monitor:'fadingembersaudio-heart-monitor-hospital-ambience-430219.mp3',
+ phone:'universfield-phone-ringing-229175.mp3',
+ keyboard:'dragon-studio-keyboard-typing-sound-effect-335503.mp3',
+ paper:'mrstokes302-pencil-writing-sfx-mrstokes302-534206.mp3',
+ bag:'dobcommunications-paper-bag-rustling-through-it-1-284814.mp3',
+ trolley:'freesound_community-hospital-food-cart-wheeled-79068.mp3',
+ waterPour:'scottishperson-sound-effect-pouring-water-192803.mp3',
+ drink:'hasin2004-drinking-water-sound-effect-247452.mp3',
+ tea:'alex_jauk-tea-slurping-sound-191460.mp3',
+ eating:'relaxsoundsde-sound-eating-free-to-use-429258.mp3',
+ cough1:'ribhavagrawal-coughing-type-sound-effect-04-294174.mp3',
+ cough2:'ribhavagrawal-coughing-sound-effect-type-06-294181.mp3',
+ wheezy:'freesound_community-wheezy-coughing-83635.mp3',
+ breath:'freesound_community-breath-6155.mp3',
+ outBreath:'voicebosch-out-of-breath-male-176715.mp3',
+ cry:'freesoundsxx-woman-crying-softly-268484.mp3',
+ vomit1:'alex_jauk-spitting-out-water-funny-211792.mp3',
+ vomit2:'dragon-studio-vomiting-sound-effect-382720.mp3',
+ vomit3:'soundreality-vomit-150122.mp3',
+ ding:'dragon-studio-ding-sfx-472366.mp3',
+ blanket:'arunangshubanerjee-woman-getting-into-bed-blanket-friction-sound-341380.mp3',
+ paper2:'freesound_community-paper-sound-39259.mp3',
+ pill:'photos-pill-bottle-shake-415796.mp3',
+ childCough:'u_xg7ssi08yr-child-coughs-355471.mp3',
+ beep:'cartoon-music-game-sfx-cash-register-scanner-single-beep-494483.mp3',
+ shower:'jadeallencook-running-shower-water-sound-in-bathroom-with-steady-stream-339233 2.mp3',
+ toilet:'vibehorn-toilet-flush-fx-3-424983.mp3',
+ microwave:'alex_jauk-microwaving-207596.mp3',
+ rain:'dragon-studio-copyright-free-rain-sounds-331497.mp3'
+};
+
+let audioOn=true;
+function play(name,reason,type='warn'){
+  if(reason) announce(reason,type);
+  if(!audioOn || !SOUND[name]) return;
+  try{let a=new Audio(SOUND[name]);a.volume=.72;a.play().catch(()=>{});}catch(e){}
+}
+function speak(text){
+  if(!G.settings.voice || !('speechSynthesis' in window)) return;
+  let u=new SpeechSynthesisUtterance(text);
+  u.rate=1; u.pitch=1.05;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+function announce(text,type='warn'){G.lastAlert=text;addLog(text,type);speak(text)}
+
+const WORLD={
+ 'Reception':{floor:'Ground Floor',kind:'public',exits:['Waiting Room','A&E Corridor','Pharmacy','Imaging Corridor','Cafeteria','Lift Lobby Ground'],objects:['reception desk','reception computer','reception phone','message board','water dispenser','main entrance']},
+ 'Waiting Room':{floor:'Ground Floor',kind:'public',exits:['Reception','Public Toilets'],objects:['waiting chairs','waiting patients','water dispenser','vending machine','information board']},
+ 'A&E Corridor':{floor:'Ground Floor',kind:'emergency',exits:['Reception','Ambulance Bay','Cubicle 1','Cubicle 2','Cubicle 3','Resus Room','Supply Room','Equipment Room','Lift Lobby Ground'],objects:['triage desk','A&E nurses station','medication cupboard','equipment trolley','crash trolley','staff phone','patient board']},
+ 'Ambulance Bay':{floor:'Ground Floor',kind:'emergency',exits:['A&E Corridor'],objects:['ambulance parking','paramedics','handover desk','transfer trolley','emergency doors']},
+ 'Cubicle 1':{floor:'Ground Floor',kind:'patientRoom',ward:'A&E Corridor',exits:['A&E Corridor'],objects:['patient bed','bedside table','call bell','curtain','bin']},
+ 'Cubicle 2':{floor:'Ground Floor',kind:'patientRoom',ward:'A&E Corridor',exits:['A&E Corridor'],objects:['patient bed','bedside table','call bell','curtain','bin']},
+ 'Cubicle 3':{floor:'Ground Floor',kind:'patientRoom',ward:'A&E Corridor',exits:['A&E Corridor'],objects:['patient bed','bedside table','call bell','curtain','bin']},
+ 'Resus Room':{floor:'Ground Floor',kind:'critical',ward:'A&E Corridor',exits:['A&E Corridor'],objects:['resus bed','heart monitor','crash trolley','defibrillator','oxygen point','emergency medication drawer','bin']},
+
+ 'Adult Ward Corridor':{floor:'First Floor',kind:'ward',exits:['Adult Room 1','Adult Room 2','Adult Room 3','Adult Room 4','Supply Room','Equipment Room','Patient Toilets','Shower Rooms','Main Nurses Station','Lift Lobby First'],objects:['adult nurses station','drinks station','linen cupboard','food trolley','ward phone','observation board']},
+ 'Adult Room 1':{floor:'First Floor',kind:'patientRoom',ward:'Adult Ward Corridor',exits:['Adult Ward Corridor'],objects:['patient','bed','bedside table','water jug','call bell','chair','window','bin']},
+ 'Adult Room 2':{floor:'First Floor',kind:'patientRoom',ward:'Adult Ward Corridor',exits:['Adult Ward Corridor'],objects:['patient','bed','bedside table','water jug','call bell','chair','window','bin']},
+ 'Adult Room 3':{floor:'First Floor',kind:'patientRoom',ward:'Adult Ward Corridor',exits:['Adult Ward Corridor'],objects:['patient','bed','bedside table','water jug','call bell','chair','window','bin']},
+ 'Adult Room 4':{floor:'First Floor',kind:'patientRoom',ward:'Adult Ward Corridor',exits:['Adult Ward Corridor'],objects:['patient','bed','bedside table','water jug','call bell','chair','window','bin']},
+
+ "Children's Ward Corridor":{floor:'First Floor',kind:'ward',exits:['Child Room 1','Child Room 2','Baby Room','Teen Room','Supply Room','Equipment Room','Family Room','Lift Lobby First'],objects:["children's nurses station",'play room','toy cupboard','drinks station','ward phone','observation board']},
+ 'Child Room 1':{floor:'First Floor',kind:'patientRoom',ward:"Children's Ward Corridor",exits:["Children's Ward Corridor"],objects:['patient','parent chair','bed','toy box','bedside table','call bell','bin']},
+ 'Child Room 2':{floor:'First Floor',kind:'patientRoom',ward:"Children's Ward Corridor",exits:["Children's Ward Corridor"],objects:['patient','parent chair','bed','toy box','bedside table','call bell','bin']},
+ 'Baby Room':{floor:'First Floor',kind:'patientRoom',ward:"Children's Ward Corridor",exits:["Children's Ward Corridor"],objects:['baby cot','parent chair','baby supplies','call bell','bin']},
+ 'Teen Room':{floor:'First Floor',kind:'patientRoom',ward:"Children's Ward Corridor",exits:["Children's Ward Corridor"],objects:['patient','bed','phone charger point','bedside table','call bell','bin']},
+
+ 'ICU Corridor':{floor:'First Floor',kind:'criticalWard',exits:['ICU Bed 1','ICU Bed 2','Isolation Room','Supply Room','Equipment Room','Main Nurses Station','Lift Lobby First'],objects:['ICU nurses station','family consultation room','crash trolley','staff phone','observation board']},
+ 'ICU Bed 1':{floor:'First Floor',kind:'critical',ward:'ICU Corridor',exits:['ICU Corridor'],objects:['patient','ICU bed','heart monitor','oxygen point','IV stand','chair for family','bin']},
+ 'ICU Bed 2':{floor:'First Floor',kind:'critical',ward:'ICU Corridor',exits:['ICU Corridor'],objects:['patient','ICU bed','heart monitor','oxygen point','IV stand','chair for family','bin']},
+ 'Isolation Room':{floor:'First Floor',kind:'critical',ward:'ICU Corridor',exits:['ICU Corridor'],objects:['patient','isolation bed','heart monitor','oxygen point','PPE shelf','bin']},
+
+ 'Maternity Corridor':{floor:'Second Floor',kind:'maternity',exits:['Labour Room 1','Labour Room 2','Postnatal Room','Nursery','Supply Room','Lift Lobby Second'],objects:['maternity nurses station','feeding station','baby changing area','call midwife phone','observation board']},
+ 'Labour Room 1':{floor:'Second Floor',kind:'patientRoom',ward:'Maternity Corridor',exits:['Maternity Corridor'],objects:['patient','birthing bed','baby heart monitor','water jug','towels','call bell','bin']},
+ 'Labour Room 2':{floor:'Second Floor',kind:'patientRoom',ward:'Maternity Corridor',exits:['Maternity Corridor'],objects:['patient','birthing bed','baby heart monitor','water jug','towels','call bell','bin']},
+ 'Postnatal Room':{floor:'Second Floor',kind:'patientRoom',ward:'Maternity Corridor',exits:['Maternity Corridor'],objects:['patient','baby cot','bedside table','water jug','call bell','bin']},
+ 'Nursery':{floor:'Second Floor',kind:'nursery',ward:'Maternity Corridor',exits:['Maternity Corridor'],objects:['baby cot 1','baby cot 2','baby monitor','feeding shelf','baby blanket shelf','bin']},
+
+ 'Neonatal Unit':{floor:'Second Floor',kind:'critical',ward:'Maternity Corridor',exits:['Maternity Corridor','Lift Lobby Second'],objects:['baby cot 1','baby cot 2','incubator','heart monitor','feeding station','baby notes','bin']},
+ 'HDU Corridor':{floor:'Second Floor',kind:'criticalWard',exits:['HDU Bed 1','HDU Bed 2','Supply Room','Equipment Room','Lift Lobby Second'],objects:['HDU nurses station','observation trolley','observation board','staff phone']},
+ 'HDU Bed 1':{floor:'Second Floor',kind:'critical',ward:'HDU Corridor',exits:['HDU Corridor'],objects:['patient','monitored bed','heart monitor','oxygen point','call bell','bin']},
+ 'HDU Bed 2':{floor:'Second Floor',kind:'critical',ward:'HDU Corridor',exits:['HDU Corridor'],objects:['patient','monitored bed','heart monitor','oxygen point','call bell','bin']},
+
+ 'Operating Theatres':{floor:'Second Floor',kind:'theatre',exits:['Recovery Ward','Lift Lobby Second'],objects:['theatre schedule board','operating theatre 1','operating theatre 2','emergency theatre','scrub station','equipment store']},
+ 'Recovery Ward':{floor:'Second Floor',kind:'ward',exits:['Operating Theatres','Recovery Bay 1','Recovery Bay 2','Supply Room','Lift Lobby Second'],objects:['monitoring station','supply cupboard','medication room','family waiting area']},
+ 'Recovery Bay 1':{floor:'Second Floor',kind:'patientRoom',ward:'Recovery Ward',exits:['Recovery Ward'],objects:['patient','recovery bed','heart monitor','sick bowl','blanket','call bell','bin']},
+ 'Recovery Bay 2':{floor:'Second Floor',kind:'patientRoom',ward:'Recovery Ward',exits:['Recovery Ward'],objects:['patient','recovery bed','heart monitor','sick bowl','blanket','call bell','bin']},
+
+ 'Supply Room':{floor:'Shared',kind:'store',exits:['Back to previous place'],objects:['cup shelf','blanket shelf','towel shelf','drinks shelf','food shelf','tissue shelf','sick bowl shelf','sick bag shelf','patient care shelf','storage trolley']},
+ 'Equipment Room':{floor:'Shared',kind:'store',exits:['Back to previous place'],objects:['thermometer shelf','stethoscope rack','pulse oximeter shelf','blood pressure machine shelf','blood glucose monitor shelf','medical torch shelf','wheelchair area','portable monitor shelf']},
+ 'Main Nurses Station':{floor:'First Floor',kind:'staff',exits:['Adult Ward Corridor','ICU Corridor','Lift Lobby First'],objects:['main desk','patient board','staff computers','staff phones','task board','observation board','handover folder']},
+
+ 'Pharmacy':{floor:'Ground Floor',kind:'service',exits:['Reception'],objects:['pharmacy counter','medication shelves','controlled drugs cabinet','fridge','prescription tray','staff phone']},
+ 'Laboratory':{floor:'Basement',kind:'service',exits:['Stairwell'],objects:['sample drop-off hatch','results computer','blood testing area','urine testing area','staff phone','sample fridge']},
+ 'Imaging Corridor':{floor:'Ground Floor',kind:'service',exits:['Reception','X-Ray Room','CT Scan Room','MRI Scan Room','Ultrasound Room'],objects:['imaging reception','changing rooms','results computer']},
+ 'X-Ray Room':{floor:'Ground Floor',kind:'service',exits:['Imaging Corridor'],objects:['X-Ray machine','examination table','computer']},
+ 'CT Scan Room':{floor:'Ground Floor',kind:'service',exits:['Imaging Corridor'],objects:['CT scanner','patient table','computer']},
+ 'MRI Scan Room':{floor:'Ground Floor',kind:'service',exits:['Imaging Corridor'],objects:['MRI scanner','patient table','computer']},
+ 'Ultrasound Room':{floor:'Ground Floor',kind:'service',exits:['Imaging Corridor'],objects:['ultrasound machine','examination bed','computer']},
+
+ 'Cafeteria':{floor:'Ground Floor',kind:'public',exits:['Reception'],objects:['serving counter','drinks machine','tables','vending machine','staff dining area']},
+ 'Patient Toilets':{floor:'First Floor',kind:'utility',exits:['Adult Ward Corridor'],objects:['toilet','sink','call bell','handrails']},
+ 'Public Toilets':{floor:'Ground Floor',kind:'utility',exits:['Waiting Room'],objects:['cubicles','sinks','hand dryers']},
+ 'Shower Rooms':{floor:'First Floor',kind:'utility',exits:['Adult Ward Corridor'],objects:['shower','chair','towels','toiletries']},
+ 'Family Room':{floor:'First Floor',kind:'public',exits:["Children's Ward Corridor"],objects:['sofas','chairs','drinks station','information board']},
+ 'Quiet Room':{floor:'Second Floor',kind:'quiet',exits:['Maternity Corridor','Lift Lobby Second'],objects:['chairs','sofas','tissues','reflection table']},
+ 'Meeting Room':{floor:'Second Floor',kind:'staff',exits:['Lift Lobby Second'],objects:['conference table','chairs','whiteboard']},
+
+ 'Laundry':{floor:'Basement',kind:'service',exits:['Stairwell'],objects:['laundry carts','washing machines','dryers','linen shelves']},
+ 'Storage Warehouse':{floor:'Basement',kind:'service',exits:['Stairwell'],objects:['pallets','boxes','spare equipment','spare furniture']},
+ 'Maintenance Department':{floor:'Basement',kind:'service',exits:['Stairwell'],objects:['tool storage','workbench','maintenance computer','repair shelf']},
+ 'Mortuary':{floor:'Basement',kind:'quiet',exits:['Stairwell'],objects:['viewing room','quiet office','respectful storage','staff phone']},
+ 'Stairwell':{floor:'Basement',kind:'travel',exits:['Laboratory','Laundry','Storage Warehouse','Maintenance Department','Mortuary','Reception'],objects:['stairs','handrails','fire exit doors']},
+
+ 'Lift Lobby Ground':{floor:'Ground Floor',kind:'travel',exits:['Reception','A&E Corridor','Lift Lobby First','Lift Lobby Second'],objects:['lift buttons','floor display','emergency phone']},
+ 'Lift Lobby First':{floor:'First Floor',kind:'travel',exits:['Adult Ward Corridor',"Children's Ward Corridor",'ICU Corridor','Main Nurses Station','Lift Lobby Ground','Lift Lobby Second'],objects:['lift buttons','floor display','emergency phone']},
+ 'Lift Lobby Second':{floor:'Second Floor',kind:'travel',exits:['Maternity Corridor','Operating Theatres','Recovery Ward','Neonatal Unit','HDU Corridor','Quiet Room','Meeting Room','Lift Lobby Ground','Lift Lobby First'],objects:['lift buttons','floor display','emergency phone']}
+};
+
+const PICKUPS={
+ 'cup shelf':['Cup'],
+ 'water dispenser':['Water Cup'],
+ 'drinks station':['Cup','Water Cup','Juice Cup','Tea Cup','Coffee Cup'],
+ 'drinks shelf':['Cup','Water Cup','Juice Cup','Tea Cup','Coffee Cup'],
+ 'food shelf':['Sandwich','Toast','Crackers','Snack'],
+ 'food trolley':['Meal Tray','Juice Cup','Water Cup'],
+ 'serving counter':['Meal Tray','Snack'],
+ 'vending machine':['Snack','Water Cup'],
+ 'blanket shelf':['Blanket','Pillow','Baby Blanket'],
+ 'linen cupboard':['Blanket','Pillow','Towel'],
+ 'towel shelf':['Towel'],
+ 'tissue shelf':['Tissues'],
+ 'sick bowl shelf':['Sick Bowl'],
+ 'sick bag shelf':['Sick Bag'],
+ 'patient care shelf':['Wet Wipes','Toothbrush','Toothpaste','Hairbrush','Phone Charger','Book','Magazine','Earplugs','Eye Mask'],
+ 'thermometer shelf':['Thermometer'],
+ 'stethoscope rack':['Stethoscope'],
+ 'pulse oximeter shelf':['Pulse Oximeter'],
+ 'blood pressure machine shelf':['Blood Pressure Machine'],
+ 'blood glucose monitor shelf':['Blood Glucose Monitor'],
+ 'medical torch shelf':['Medical Torch'],
+ 'wheelchair area':['Wheelchair'],
+ 'portable monitor shelf':['Portable Monitor'],
+ 'medication shelves':['Medication Basket'],
+ 'fridge':['Medication Basket'],
+ 'sample drop-off hatch':['Sample Pot'],
+ 'feeding station':['Bottle','Formula'],
+ 'feeding shelf':['Bottle','Formula'],
+ 'baby changing area':['Nappies','Baby Wipes'],
+ 'baby blanket shelf':['Baby Blanket'],
+ 'tissues':['Tissues'],
+ 'sick bowl':['Sick Bowl'],
+ 'blanket':['Blanket']
+};
+const ITEM_SOUND={'Water Cup':'waterPour','Juice Cup':'waterPour','Tea Cup':'tea','Coffee Cup':'tea','Cup':'ding','Sick Bag':'bag','Sick Bowl':'ding','Blanket':'blanket','Baby Blanket':'blanket','Medication Basket':'pill','Sandwich':'eating','Toast':'eating','Crackers':'eating','Snack':'eating','Meal Tray':'eating','Tissues':'paper2','Towel':'paper2','Bottle':'drink'};
+const FIRST=['Sarah','Emma','James','Olivia','Daniel','Sophie','Lucas','Mia','Amelia','Noah','Grace','Jack','Ava','Charlie','Freya','Leo','Ella','George','Ruby','Thomas','Hannah','Adam','Lucy','Lily','Mason','Isla','Ethan','Jessica','Kayla','Marina','Daisy','Lola','Oscar','Theo','Harriet','Finley','Evie','Archie','Emily','Maya','Willow','Freddie','Chloe','Harper','Riley','Ivy','Molly'];
+const LAST=['Smith','Jones','Taylor','Brown','Williams','Wilson','Johnson','Davies','Roberts','Walker','Wright','Thompson','Evans','White','Green','Hall','Clarke','Lewis','Harris','Cooper','Edwards','Morris','Turner','Carter','Phillips'];
+
+const STAFF=[
+ ['Nurse Emma','adult ward nurse','Adult Ward Corridor'],
+ ['Nurse Sarah',"children's ward nurse","Children's Ward Corridor"],
+ ['Nurse Olivia','A&E nurse','A&E Corridor'],
+ ['Nurse Daniel','ICU nurse','ICU Corridor'],
+ ['Midwife Sarah','midwife','Maternity Corridor'],
+ ['Dr Patel','senior doctor','Main Nurses Station'],
+ ['Dr Morgan','anaesthetist','Operating Theatres'],
+ ['Paramedic Jake','paramedic','Ambulance Bay'],
+ ['Paramedic Sophie','paramedic','Ambulance Bay'],
+ ['Pharmacist Emma','pharmacist','Pharmacy'],
+ ['Lab Scientist James','lab scientist','Laboratory'],
+ ['Radiographer Mia','radiographer','Imaging Corridor'],
+ ['Ben','healthcare assistant','Adult Ward Corridor'],
+ ['Claire','receptionist','Reception'],
+ ['Porter Leo','porter','Lift Lobby Ground'],
+ ['Cleaner Amy','cleaner','Adult Ward Corridor'],
+ ['Chaplain Grace','chaplain','Quiet Room']
+];
+
+const ILL=[
+ {name:'pneumonia',dept:'Adult Ward Corridor',rooms:['Adult Room 1','Adult Room 2','Adult Room 3','Adult Room 4'],severity:58,symptoms:['cough','fever','shortness of breath','chest pain'],needs:['Water Cup','Blanket','Tissues'],sounds:['cough1','breath'],treat:['Antibiotics','Oxygen'],speech:['It started as a cough a few days ago, but now my chest hurts when I breathe in.','I keep feeling hot and cold. I am exhausted.','Walking to the toilet makes me breathless.'],tests:['Chest X-Ray','Blood Test']},
+ {name:'asthma attack',dept:'A&E Corridor',rooms:['Cubicle 1','Cubicle 2','Cubicle 3','Resus Room'],severity:68,symptoms:['wheezing','tight chest','shortness of breath'],needs:['Oxygen','Inhaler','Water Cup'],sounds:['wheezy','outBreath'],treat:['Oxygen','Inhaler'],speech:['My chest feels tight and I cannot get a full breath.','My inhaler did not help much today.','I am scared because breathing feels hard.'],tests:['Oxygen Check']},
+ {name:'stomach bug',dept:'A&E Corridor',rooms:['Cubicle 1','Cubicle 2','Cubicle 3'],severity:35,symptoms:['vomiting','tummy pain','dehydration'],needs:['Sick Bowl','Sick Bag','Water Cup','Tissues'],sounds:['vomit2','vomit1'],treat:['Anti-Sickness','Water Cup'],speech:['I have been sick again and again since this morning.','My tummy keeps cramping.','Please can I have a sick bowl close by?'],tests:['Temperature','Urine Test']},
+ {name:'heart attack',dept:'A&E Corridor',rooms:['Resus Room','Cubicle 1'],severity:94,symptoms:['crushing chest pain','sweating','breathless'],needs:['Oxygen','Senior Doctor','Emergency Medication'],sounds:['breath','alarm'],treat:['Emergency Medication','Oxygen','Senior Doctor'],speech:['It feels like something heavy is sitting on my chest.','The pain started suddenly and I feel clammy.','I am frightened. Something is wrong.'],tests:['ECG','Blood Test']},
+ {name:'sepsis',dept:'ICU Corridor',rooms:['ICU Bed 1','ICU Bed 2','Isolation Room'],severity:96,symptoms:['confusion','high temperature','fast heart rate'],needs:['Antibiotics','IV Fluids','Senior Doctor'],sounds:['monitor','breath'],treat:['Antibiotics','IV Fluids'],speech:['I feel strange. I cannot think clearly.','I am freezing and burning at the same time.','Everything feels blurry.'],tests:['Blood Test','Urine Test']},
+ {name:'labour',dept:'Maternity Corridor',rooms:['Labour Room 1','Labour Room 2'],severity:45,symptoms:['contractions','back pain','feeling sick'],needs:['Water Cup','Towel','Midwife'],sounds:['cry'],treat:['Midwife','Blanket'],speech:['The contractions are getting closer together.','My back really hurts. Can I have some water?','Please get the midwife.'],tests:['Baby Heart Rate']},
+ {name:'post surgery recovery',dept:'Recovery Ward',rooms:['Recovery Bay 1','Recovery Bay 2'],severity:50,symptoms:['sleepy','thirsty','feels sick','cold'],needs:['Water Cup','Blanket','Sick Bowl'],sounds:['monitor'],treat:['Anti-Sickness','Water Cup'],speech:['Where am I? My throat feels dry.','I feel sick and cold.','Can I see my family soon?'],tests:['Observations']},
+ {name:'premature baby',dept:'Neonatal Unit',rooms:['Baby cot 1','Baby cot 2'],severity:80,symptoms:['baby crying','feeding difficulty','temperature unstable'],needs:['Baby Blanket','Bottle'],sounds:['baby','monitor'],treat:['Bottle','Baby Blanket'],speech:['The baby is crying softly and needs careful support.','The monitor is showing the baby needs close observation.'],tests:['Temperature','Weight']},
+ {name:'anxiety attack',dept:'A&E Corridor',rooms:['Cubicle 1','Cubicle 2','Cubicle 3'],severity:38,symptoms:['panic','fast breathing','chest tightness'],needs:['Reassurance','Water Cup','Quiet Room'],sounds:['outBreath','cry'],treat:['Reassurance','Water Cup'],speech:['I know it might be panic, but it feels terrifying.','Please explain what is happening.','I need somewhere quieter.'],tests:['Observations']},
+ {name:'COPD flare',dept:'Adult Ward Corridor',rooms:['Adult Room 1','Adult Room 2','Adult Room 3','Adult Room 4'],severity:70,symptoms:['wheezy cough','shortness of breath','tired'],needs:['Oxygen','Water Cup'],sounds:['wheezy','cough2'],treat:['Oxygen','Antibiotics'],speech:['My breathing has been getting worse all week.','I cannot walk far without stopping.','The cough is deep and exhausting.'],tests:['Chest X-Ray','Blood Test']},
+ {name:'major trauma',dept:'A&E Corridor',rooms:['Resus Room'],severity:98,symptoms:['multiple injuries','bleeding','unconscious'],needs:['Crash Trolley','Senior Doctor','Surgery'],sounds:['alarm'],treat:['Crash Trolley','Surgery','Senior Doctor'],speech:['The patient is unconscious. Paramedics are giving handover.'],tests:['CT Scan','Blood Test','X-Ray']},
+ {name:'newborn check',dept:'Maternity Corridor',rooms:['Nursery'],severity:20,symptoms:['baby crying','feeding support needed'],needs:['Bottle','Baby Blanket'],sounds:['baby'],treat:['Bottle','Baby Blanket'],speech:['The newborn is unsettled and rooting for a feed.','The baby needs warmth and feeding support.'],tests:['Temperature','Weight']},
+ {name:'stroke symptoms',dept:'A&E Corridor',rooms:['Cubicle 2','Resus Room'],severity:90,symptoms:['slurred speech','weak arm','face drooping'],needs:['Senior Doctor','CT Scan','Water Cup'],sounds:['breath'],treat:['Senior Doctor','Emergency Medication'],speech:['My words are not coming out right.','My arm feels weak.','This started suddenly.'],tests:['CT Scan','Blood Test']},
+ {name:'appendicitis',dept:'A&E Corridor',rooms:['Cubicle 1','Cubicle 3'],severity:72,symptoms:['right sided tummy pain','vomiting','fever'],needs:['Sick Bowl','Water Cup','Pain Relief'],sounds:['vomit1'],treat:['Pain Relief','Surgery'],speech:['The pain moved to the right side and it hurts when I move.','I feel sick and feverish.'],tests:['Blood Test','Ultrasound']},
+ {name:'broken arm',dept:'A&E Corridor',rooms:['Cubicle 1','Cubicle 2'],severity:30,symptoms:['arm pain','swelling','cannot move arm'],needs:['Pain Relief','X-Ray'],sounds:['cry'],treat:['Pain Relief','Bandage'],speech:['I fell and landed on my arm. It really hurts.','I cannot move it properly.'],tests:['X-Ray']},
+ {name:'diabetic emergency',dept:'A&E Corridor',rooms:['Cubicle 2','Resus Room'],severity:74,symptoms:['confusion','sweating','shaking'],needs:['Food','IV Fluids','Senior Doctor'],sounds:['breath'],treat:['IV Fluids','Food'],speech:['I feel shaky and confused.','I do not feel right at all.'],tests:['Blood Glucose','Blood Test']},
+ {name:'allergic reaction',dept:'A&E Corridor',rooms:['Cubicle 1','Resus Room'],severity:82,symptoms:['rash','swollen lips','wheezing'],needs:['Oxygen','Emergency Medication','Senior Doctor'],sounds:['wheezy'],treat:['Emergency Medication','Oxygen'],speech:['My lips feel swollen and I am wheezing.','This started after I ate something.'],tests:['Observations']},
+ {name:'migraine',dept:'Adult Ward Corridor',rooms:['Adult Room 2','Adult Room 3'],severity:28,symptoms:['severe headache','light sensitivity','nausea'],needs:['Water Cup','Quiet Room','Pain Relief'],sounds:['cry'],treat:['Pain Relief','Water Cup'],speech:['The light makes my head worse.','I feel sick with the headache.'],tests:['Observations']},
+ {name:'kidney infection',dept:'Adult Ward Corridor',rooms:['Adult Room 1','Adult Room 4'],severity:54,symptoms:['fever','back pain','pain passing urine'],needs:['Water Cup','Antibiotics'],sounds:['breath'],treat:['Antibiotics','Water Cup'],speech:['My back hurts and I feel feverish.','It hurts when I pass urine.'],tests:['Urine Test','Blood Test']},
+ {name:'mental health crisis',dept:'A&E Corridor',rooms:['Cubicle 3'],severity:60,symptoms:['distressed','panic','not feeling safe'],needs:['Reassurance','Quiet Room','Senior Doctor'],sounds:['cry'],treat:['Reassurance','Senior Doctor'],speech:['I do not feel safe with my thoughts.','Please do not leave me alone.'],tests:['Mental Health Review']}
+];
+
+const ROUTINES=[
+ {time:'06:00',name:'Night observations',kind:'observations'},
+ {time:'07:30',name:'Early handover',kind:'handover'},
+ {time:'08:00',name:'Breakfast trolley',kind:'food'},
+ {time:'09:00',name:'Morning medication round',kind:'meds'},
+ {time:'10:00',name:'Doctor ward round',kind:'round'},
+ {time:'12:00',name:'Lunch trolley',kind:'food'},
+ {time:'14:00',name:'Scan and discharge reviews',kind:'scans'},
+ {time:'16:00',name:'Afternoon observations',kind:'observations'},
+ {time:'18:00',name:'Dinner trolley',kind:'food'},
+ {time:'20:00',name:'Visiting time ends soon',kind:'visits'},
+ {time:'22:00',name:'Night settling round',kind:'night'},
+ {time:'03:00',name:'Overnight checks',kind:'observations'}
+];
+
+const DEFAULT={
+ started:false,loc:'Reception',previousLoc:'Reception',
+ time:{day:1,hour:8,min:0},weather:'Rain',
+ held:null,bag:[],stock:{},patients:[],staff:[],visitors:[],results:[],concerns:[],log:[],
+ lastAlert:'No alerts yet.',
+ settings:{voice:true,difficulty:'challenging'},
+ stats:{treated:0,discharged:0,births:0,deaths:0,emergencies:0,ambulances:0,daysWorked:1,comforts:0,exams:0,staffHelped:0,routines:0,surgeries:0,tests:0,transfers:0},
+ achievements:[],
+ player:{energy:92,hunger:12,thirst:15,morale:86},
+ reputation:72,routineDone:{}
+};
+let G=load();init();
+
+function rnd(a){return a[Math.floor(Math.random()*a.length)]}
+function r(n){return Math.floor(Math.random()*n)}
+function gid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function esc(s){return String(s).replace(/'/g,"\\'")}
+function load(){try{return JSON.parse(localStorage.getItem('hospitalFullLivingSave'))||clone(DEFAULT)}catch(e){return clone(DEFAULT)}}
+function save(){localStorage.setItem('hospitalFullLivingSave',JSON.stringify(G))}
+function init(){
+ Object.values(PICKUPS).flat().forEach(x=>{if(G.stock[x]==null)G.stock[x]=x.includes('Machine')||x.includes('Monitor')?8:45});
+ ['Oxygen','Inhaler','Antibiotics','Anti-Sickness','Pain Relief','Emergency Medication','IV Fluids','Bandage','Senior Doctor','Midwife','Reassurance','Crash Trolley','Surgery','Food','CT Scan','X-Ray','Ultrasound','Blood Test','Urine Test','ECG'].forEach(x=>{if(G.stock[x]==null)G.stock[x]=30});
+ if(!G.staff.length)G.staff=STAFF.map(s=>({id:gid(),name:s[0],role:s[1],loc:s[2],energy:80+r(18),hunger:r(30),thirst:r(30),morale:82,busy:false,task:'available',relationships:0}));
+}
+function timeText(){return 'Day '+G.time.day+', '+String(G.time.hour).padStart(2,'0')+':'+String(G.time.min).padStart(2,'0')}
+function addLog(t,type=''){G.log.unshift({t,at:timeText(),type});if(G.log.length>260)G.log.pop();save()}
+function status(){document.getElementById('status').textContent=G.started?timeText()+' | '+G.weather+' | '+G.loc+' | holding '+(G.held||'nothing')+' | reputation '+Math.round(G.reputation)+'%':'Not started'}
+
+function tick(m=2){
+ for(let i=0;i<m;i++){
+  G.time.min++;
+  if(G.time.min>=60){G.time.min=0;G.time.hour++}
+  if(G.time.hour>=24){G.time.hour=0;G.time.day++;G.stats.daysWorked++;G.routineDone={};daily()}
+  runRoutines();
+  patientMinute();
+  staffMinute();
+  patientMovementMinute();
+  visitorMinute();
+  if(Math.random()<.016)worldEvent();
+  if(Math.random()<.02)ambientLife();
+ }
+ G.player.hunger=Math.min(100,G.player.hunger+m*.035);
+ G.player.thirst=Math.min(100,G.player.thirst+m*.055);
+ G.player.energy=Math.max(0,G.player.energy-m*.025);
+ checkAchievements();
+ save();
+}
+function daily(){Object.keys(G.stock).forEach(k=>G.stock[k]=Math.min(120,G.stock[k]+8+r(12)));G.weather=rnd(['Sunny','Rain','Heavy rain','Storm','Cold','Snow','Fog']);addLog('New day. Supplies arrived. Weather: '+G.weather+'.')}
+function runRoutines(){
+ let now=String(G.time.hour).padStart(2,'0')+':'+String(G.time.min).padStart(2,'0');
+ ROUTINES.forEach(rt=>{
+  let key=G.time.day+'-'+rt.time;
+  if(now===rt.time&&!G.routineDone[key]){
+    G.routineDone[key]=true;G.stats.routines++;routine(rt);
+  }
+ });
+}
+function routine(rt){
+ if(rt.kind==='food'){
+  play('trolley',rt.name+': the food trolley is moving through the wards. Patients may ask for food, drinks or help eating.','good');
+  G.patients.filter(p=>alive(p)&&['Adult Ward Corridor',"Children's Ward Corridor",'Maternity Corridor','Recovery Ward'].includes(p.dept)).slice(0,14).forEach(p=>{if(Math.random()<.6)patientRequest(p,rnd(['Meal Tray','Water Cup','Juice Cup']))});
+ }else if(rt.kind==='meds'){
+  play('pill','Morning medication round: nurses are giving routine medicine and will call you if a prescription looks unsafe.','good');
+  autoStaffHelp('medication round');
+ }else if(rt.kind==='observations'){
+  play('beep',rt.name+': nurses are checking observations across the wards.','good');
+  G.patients.filter(alive).forEach(p=>{
+   p.obs = makeObs(p);
+   if(p.condition>78&&Math.random()<.35)patientRequest(p,'Senior Doctor');
+  });
+ }else if(rt.kind==='round'){
+  play('paper','Doctor ward round: staff are expecting patient reviews on the wards.','good');
+  G.patients.filter(p=>alive(p)&&p.condition>50).slice(0,14).forEach(p=>addConcern('Ward round review for '+p.name,p.id,p.condition>80?'urgent':'normal'));
+ }else if(rt.kind==='handover'){
+  play('paper','Staff handover: nurses update you about overnight concerns and new patients.','good');
+  let p=activePatient();if(p)addConcern('Handover concern: review '+p.name+' in '+p.room,p.id,p.condition>75?'urgent':'normal');
+ }else if(rt.kind==='scans'){
+  play('phone','Scan and discharge review period: porters may move stable patients for imaging.','good');
+  autoTransfers();
+ }else if(rt.kind==='visits'){
+  play('knock','Visiting time update: visitors are leaving soon, but ICU, children and end-of-life cases may have exceptions.','good');
+  for(let i=0;i<3;i++)if(Math.random()<.6)visitorEvent();
+ }else if(rt.kind==='night'){
+  play('ding','Night settling round: lights are dimmed, blankets and pain relief requests may increase.','good');
+  G.patients.filter(alive).slice(0,10).forEach(p=>{if(Math.random()<.4)patientRequest(p,rnd(['Blanket','Water Cup','Tissues']))});
+ }
+}
+function patientMinute(){
+ G.patients.forEach(p=>{
+  if(!alive(p))return;
+  p.thirst=Math.min(100,p.thirst+.08);
+  p.hunger=Math.min(100,p.hunger+.035);
+  p.comfort=Math.max(0,p.comfort-.04);
+  p.minutes++;
+  if(p.pregnant)p.labour=Math.min(100,p.labour+.06);
+  let deteriorationRate = G.settings.difficulty==='challenging' ? p.severity/72000 : p.severity/95000;
+  if(!p.treatmentStarted&&Math.random()<deteriorationRate)p.condition=Math.min(100,p.condition+1);
+  if(p.thirst>75&&!p.needs.includes('Water Cup'))patientRequest(p,'Water Cup');
+  if(p.comfort<25&&!p.needs.includes('Blanket')&&Math.random()<.006)patientRequest(p,'Blanket');
+  if(p.symptoms.includes('vomiting')&&Math.random()<.004&&!p.needs.includes('Sick Bowl'))patientRequest(p,'Sick Bowl');
+  if(p.pregnant&&p.labour>90&&!p.needs.includes('Midwife'))patientRequest(p,'Midwife');
+  if(p.condition>83&&!p.warned){p.warned=true;G.stats.emergencies++;addConcern('Urgent review for '+p.name,p.id,'urgent');play('callBell','Call bell: '+p.name+' in '+p.room+' needs urgent review because their condition is worsening.')}
+  if(p.condition>91&&WORLD[p.room]&&WORLD[p.room].kind==='critical'&&Math.random()<.0025)play('alarm','Monitor alarm: '+p.name+' in '+p.room+' is deteriorating. Symptoms: '+p.symptoms.join(', ')+'.','danger');
+  if(p.condition>96&&Math.random()<.001)death(p,'became critically unwell');
+ });
+}
+function staffMinute(){
+ G.staff.forEach(s=>{
+  s.hunger=Math.min(100,s.hunger+.025);
+  s.thirst=Math.min(100,s.thirst+.035);
+  s.energy=Math.max(0,s.energy-.015);
+  if(s.busy&&Math.random()<.06){s.busy=false;s.task='available';addLog(s.name+' has finished their task.','good')}
+  if(!s.busy&&Math.random()<.011)staffActs(s);
+  if(!s.busy&&Math.random()<.002){s.loc=rnd(Object.keys(WORLD))}
+  if(s.energy<15&&!s.busy){s.busy=true;s.task='taking a break';s.loc='Cafeteria';play('tea',s.name+' has gone for a break because they are exhausted.','good');setTimeout(()=>{s.energy=70;s.hunger=10;s.thirst=10;s.busy=false;s.task='available';save();},5000)}
+ });
+}
+function staffActs(s){
+ let task=G.concerns.find(t=>!t.done&&t.priority!=='urgent');
+ if(task&&canStaffDo(s,task)){
+  s.busy=true;s.task=task.text;
+  let p=G.patients.find(x=>x.id===task.pid);
+  if(p){
+   if(task.text.toLowerCase().includes('water')||task.text.toLowerCase().includes('blanket')||task.text.toLowerCase().includes('tissues')||task.text.toLowerCase().includes('meal')){p.needs=[];p.comfort=Math.min(100,p.comfort+10)}
+   if(task.text.toLowerCase().includes('observations'))p.obs=makeObs(p);
+   task.done=true;G.stats.staffHelped++;
+   addLog(s.name+' handled without being asked: '+task.text+'.','good');
+  }
+ }
+}
+function canStaffDo(s,t){return s.role.includes('nurse')||s.role.includes('healthcare')||s.role.includes('midwife')||s.role.includes('porter')||s.role.includes('cleaner')}
+function patientMovementMinute(){
+ G.patients.forEach(p=>{
+  if(!alive(p))return;
+  if(p.status==='Waiting'&&p.minutes>20&&Math.random()<.004){p.status='Admitted';addLog(p.name+' has been moved from waiting to '+p.room+'.','good')}
+  if(p.condition<35&&p.treatmentStarted&&Math.random()<.002){dischargeAuto(p)}
+  if(p.condition>88&&p.dept!=='ICU Corridor'&&p.dept!=='A&E Corridor'&&Math.random()<.0015){
+   let old=p.room;p.dept='ICU Corridor';p.room=rnd(['ICU Bed 1','ICU Bed 2','Isolation Room']);G.stats.transfers++;
+   play('trolley','Trolley: '+p.name+' has been transferred from '+old+' to '+p.room+' because they need closer monitoring.','danger');
+  }
+  if(p.treat.includes('Surgery')&&p.completed.includes('Surgery')===false&&p.condition>70&&Math.random()<.0009){
+   let old=p.room;p.room='Operating Theatres';p.status='In theatre';G.stats.transfers++;
+   play('trolley','Porter transfer: '+p.name+' is being moved from '+old+' to Operating Theatres for surgery.','warn');
+   setTimeout(()=>{if(alive(p)){p.completed.push('Surgery');p.status='Recovering';p.room=rnd(['Recovery Bay 1','Recovery Bay 2']);p.dept='Recovery Ward';p.condition=Math.max(25,p.condition-30);G.stats.surgeries++;play('monitor',p.name+' has returned to Recovery Ward after surgery.','good');save();}},9000);
+  }
+  if(Math.random()<.001&&['Adult Ward Corridor',"Children's Ward Corridor"].includes(p.dept)){
+   let old=p.room;p.room='Patient Toilets';
+   play('footsteps',p.name+' has gone from '+old+' to Patient Toilets with staff support.');
+   setTimeout(()=>{if(alive(p)){p.room=old;addLog(p.name+' returned from Patient Toilets to '+old+'.','good');save();}},6500);
+  }
+ });
+}
+function visitorMinute(){
+ G.visitors.forEach(v=>{
+  if(Math.random()<.003){
+    let p=G.patients.find(x=>x.id===v.patient);
+    if(p&&alive(p)){v.loc=p.room;addLog(v.name+' has gone to '+p.room+' to visit '+p.name+'.')}
+  }
+ });
+}
+function autoTransfers(){
+ let p=G.patients.find(x=>alive(x)&&x.condition<65&&x.treatmentStarted);
+ if(p){
+  let old=p.room;p.room='Imaging Corridor';G.stats.transfers++;
+  G.results.push({patient:p.name,text:'Imaging report supports '+p.illness});
+  play('trolley','Porter transfer: '+p.name+' is being taken from '+old+' to Imaging for a scan.');
+  setTimeout(()=>{if(alive(p)){p.room=old;addLog(p.name+' returned from Imaging to '+old+'.','good');save();}},8000);
+ }
+}
+function autoStaffHelp(kind){let s=G.staff.find(x=>!x.busy&&(x.role.includes('nurse')||x.role.includes('midwife')));if(s){s.busy=true;s.task=kind;setTimeout(()=>{s.busy=false;s.task='available';addLog(s.name+' completed '+kind+'.','good');save()},4500)}}
+function ambientLife(){
+ let here=G.patients.filter(p=>alive(p)&&near(G.loc,p.room));
+ if(here.length){
+  let p=rnd(here);let snd=p.sounds.length?rnd(p.sounds):null;
+  if(snd){play(snd,'Nearby patient sound: '+p.name+' in '+p.room+' is showing symptoms: '+p.symptoms.join(', ')+'.','');return}
+ }
+ let s=G.staff.find(x=>x.loc===G.loc);
+ if(s&&Math.random()<.65)addLog(s.name+' passes nearby. '+staffLine(s));
+}
+function staffLine(s){
+ if(s.role.includes('nurse'))return 'They are checking patients and call bells.';
+ if(s.role.includes('paramedic'))return 'They are waiting for the next ambulance handover.';
+ if(s.role.includes('porter'))return 'They are moving between wards with a trolley.';
+ if(s.role.includes('pharmacist'))return 'They are checking medication safety.';
+ if(s.role.includes('cleaner'))return 'They are keeping the ward safe and clean.';
+ return 'They are working in '+s.loc+'.';
+}
+function near(a,b){return a===b||WORLD[a]&&WORLD[a].exits&&WORLD[a].exits.includes(b)}
+function alive(p){return p&&!['Dead','Discharged'].includes(p.status)}
+function patientRequest(p,item){
+ if(!p.needs.includes(item))p.needs.push(item);
+ addConcern(p.name+' needs '+plainItem(item),p.id,'normal');
+ play('callBell','Call bell: '+p.name+' in '+p.room+' is asking for '+plainItem(item)+'.');
+}
+function worldEvent(){
+ let x=Math.random();
+ if(x<.2){let p=makePatient(true);G.stats.ambulances++;addConcern('Ambulance handover for '+p.name,p.id,'urgent');play('ambulance','Ambulance: '+p.name+' is arriving at Ambulance Bay with '+p.symptoms.join(', ')+'.')}
+ else if(x<.38){let p=makePatient(false);addConcern('New patient waiting: '+p.name,p.id,'normal');addLog('Walk-in patient: '+p.name+' is waiting for triage.')}
+ else if(x<.58){let p=activePatient();if(p){let need=rnd(p.baseNeeds);patientRequest(p,need)}}
+ else if(x<.74){let p=activePatient();if(p){p.condition=Math.min(100,p.condition+10+r(8));G.stats.emergencies++;addConcern('Deterioration: '+p.name,p.id,'urgent');play(p.room.includes('ICU')||p.room.includes('Resus')?'alarm':'callBell','Alert: '+p.name+' in '+p.room+' is getting worse. Current symptoms: '+p.symptoms.join(', ')+'.','danger')}}
+ else if(x<.88){visitorEvent()}
+ else resultEvent();
+}
+function activePatient(){let a=G.patients.filter(alive);return a.length?rnd(a):null}
+function visitorEvent(){
+ let p=activePatient();if(!p)return;
+ let v={id:gid(),patient:p.id,name:rnd(FIRST)+' '+rnd(LAST),loc:p.room,need:rnd(['directions','an update','a drink','to make a complaint','to deliver a gift','to sit somewhere quiet']),mood:rnd(['worried','upset','angry','kind','lost'])};
+ G.visitors.push(v);addConcern('Visitor for '+p.name+' needs '+v.need,p.id,v.mood==='angry'?'urgent':'normal');
+ play('knock','Door knock: '+v.name+' is here for '+p.name+' and needs '+v.need+'.');
+}
+function resultEvent(){let res=G.results.shift();if(res)play('phone','Phone call: results are available for '+res.patient+'. '+res.text+'.')}
+function death(p,why){p.status='Dead';G.stats.deaths++;G.reputation=Math.max(0,G.reputation-8);addConcern('Support family after death of '+p.name,p.id,'urgent');play('alarm','Critical alert: '+p.name+' died after they '+why+'. Family and staff need support.','danger')}
+function makeObs(p){
+ let temp=p.symptoms.includes('fever')?(38+Math.random()*2).toFixed(1):'36.'+r(9);
+ let oxygen=p.symptoms.some(s=>s.includes('breath')||s.includes('wheez'))?(88+r(8)):(96+r(4));
+ let pulse=p.condition>80?110+r(35):70+r(30);
+ let bp=p.condition>85?rnd(['95 over 60','160 over 100','88 over 55']):rnd(['120 over 80','130 over 85','118 over 76']);
+ return {temp,oxygen,pulse,bp,at:timeText()};
+}
+function makePatient(ambulance=false,forced){
+ let ill=forced?ILL.find(x=>x.name===forced):rnd(ILL);
+ let age=ill.name==='newborn check'||ill.name==='premature baby'?0:r(96)+1;
+ let p={id:gid(),name:rnd(FIRST)+' '+rnd(LAST),age,illness:ill.name,dept:ambulance?'A&E Corridor':ill.dept,room:ambulance?'Resus Room':rnd(ill.rooms),condition:Math.min(100,ill.severity+r(15)-5),severity:ill.severity,status:ambulance?'Admitted':'Waiting',symptoms:clone(ill.symptoms),baseNeeds:clone(ill.needs),needs:[rnd(ill.needs)],sounds:clone(ill.sounds),treat:clone(ill.treat),tests:clone(ill.tests||[]),completed:[],speech:clone(ill.speech),allergy:Math.random()<.18?'Penicillin':'None',family:rnd(['family may visit','no visitor listed','partner present','parent staying','daughter is next of kin','son is next of kin']),pain:Math.min(10,Math.ceil(ill.severity/11)),thirst:r(45),hunger:r(45),comfort:55+r(35),notes:[],minutes:0,treatmentStarted:false,diagnosed:false,warned:false,pregnant:ill.name==='labour',labour:ill.name==='labour'?50+r(45):0,lastSpoken:'',obs:null,memory:{helped:0,ignored:0,reassured:0}};
+ p.obs=makeObs(p);
+ G.patients.push(p);addLog('New patient: '+p.name+', '+p.room+', symptoms: '+p.symptoms.join(', ')+'.');return p;
+}
+function addConcern(text,pid,priority){G.concerns.unshift({id:gid(),text,pid,priority,done:false,created:timeText()});save()}
+function start(){
+ G.started=true;
+ for(let i=0;i<65;i++)makePatient(false);
+ for(let i=0;i<8;i++)makePatient(true);
+ addLog('First day started. This is the full living hospital build: movement, touch exploration, patient needs, staff routines, visitors, results, surgery, maternity, ICU, routines, saves, reputation and explained sounds.');
+ save();render();
+}
+
+function render(){
+ status();
+ if(!G.started){
+  app.innerHTML='<div class="card"><h2>Hospital Doctor Simulator Full Living Hospital</h2><p>This is the complete single-file build to test and patch. It is an audio-first hospital: move through corridors, touch-explore rooms, open shelves, carry one item at a time, speak to patients, use equipment, respond to real alerts, and let the hospital keep running with staff, visitors, rounds, results, transfers, births, deaths and discharges.</p><button onclick="start()">Start first day</button></div><div class="card"><button onclick="audioOn=!audioOn;render()">Sound: '+(audioOn?'On':'Off')+'</button><button onclick="G.settings.voice=!G.settings.voice;save();render()">Voice explanations: '+(G.settings.voice?'On':'Off')+'</button></div>';
+  return;
+ }
+ placeView();
+}
+function placeView(){
+ status();
+ let place=WORLD[G.loc]||WORLD.Reception;
+ let people=peopleHere();
+ app.innerHTML='<div class="card"><h2>'+G.loc+'</h2><p class="small">'+placeDescription(G.loc)+'</p><p class="held">You are holding: '+(G.held||'nothing')+'</p><p class="bigAlert">Last alert: '+G.lastAlert+'</p><div class="row"><button class="smallButton" onclick="bagView()">Bag</button><button class="smallButton" onclick="routineView()">Routines</button><button class="smallButton" onclick="staffView()">Colleagues</button><button class="smallButton" onclick="informationView()">Boards</button><button class="smallButton" onclick="statsView()">Career</button><button class="smallButton" onclick="putDown()">Put down held item</button><button class="smallButton" onclick="tick(30);placeView()">Stand here for 30 minutes</button></div><h3>Type a command</h3><input id="commandBox" placeholder="Example: go to supply room, open cup shelf, ask Emily about pain"><button onclick="runCommand()">Do command</button></div>'
+ +'<div class="card card2"><h3>Ways out</h3><div class="grid">'+(place.exits||[]).map(e=>'<button onclick="moveTo(\''+esc(e)+'\')">Go to '+e+'</button>').join('')+'</div></div>'
+ +'<div class="card"><h3>Touch explore objects</h3><div class="grid">'+(place.objects||[]).map(o=>'<button onclick="touchObject(\''+esc(o)+'\')">'+o+'</button>').join('')+'</div></div>'
+ +'<div class="card"><h3>People here</h3>'+(people.length?people.map(personCard).join(''):'<p>No one is directly in front of you here.</p>')+'</div>'
+ +'<div class="card"><h3>Recent hospital life</h3><div class="log">'+G.log.slice(0,40).map(l=>'<div class="'+(l.type==='danger'?'danger':l.type==='warn'?'warn':l.type==='good'?'good':'')+'">'+l.at+': '+l.t+'</div>').join('')+'</div></div>';
+}
+function placeDescription(p){
+ let t=(WORLD[p]&&WORLD[p].kind)||'';
+ if(t==='patientRoom')return 'A patient room. Interact with the patient or objects in the room.';
+ if(t==='critical')return 'A high-risk clinical room. Monitor sounds matter here.';
+ if(t==='ward')return 'A ward corridor. Patients, staff, food rounds and medication rounds happen here.';
+ if(t==='store')return 'A store room. Open shelves, pick up supplies, and return to patients.';
+ if(t==='emergency')return 'Emergency area. Ambulances, triage and sudden deterioration happen here.';
+ if(t==='maternity')return 'Maternity area with labour rooms, nursery and midwives.';
+ if(t==='service')return 'Hospital service department. Results, medication or scans happen here.';
+ return 'Explore by choosing objects and exits.';
+}
+function peopleHere(){
+ let arr=[];
+ G.patients.filter(p=>alive(p)&&p.room===G.loc).forEach(p=>arr.push({type:'patient',p}));
+ G.staff.filter(s=>s.loc===G.loc).forEach(s=>arr.push({type:'staff',s}));
+ G.visitors.filter(v=>v.loc===G.loc).forEach(v=>arr.push({type:'visitor',v}));
+ return arr;
+}
+function personCard(x){
+ if(x.type==='patient'){
+  let p=x.p,cls=p.condition>85?'critical':p.condition>60?'urgent':'stable';
+  return '<div class="card patient '+cls+'"><h3>'+p.name+', age '+p.age+'</h3><p>'+p.status+'. Condition '+p.condition+'/100. Needs: '+(p.needs.map(plainItem).join(', ')||'nothing')+'.</p><button onclick="patientView(\''+p.id+'\')">Interact with '+p.name+'</button></div>';
+ }
+ if(x.type==='staff'){
+  let s=x.s;return '<div class="card"><h3>'+s.name+'</h3><p>'+s.role+'. Task: '+s.task+'. Energy '+Math.round(s.energy)+'.</p><button onclick="talkStaff(\''+s.id+'\')">Talk to '+s.name+'</button></div>';
+ }
+ let v=x.v;return '<div class="card"><h3>'+v.name+'</h3><p>Visitor, '+v.mood+'. Needs '+v.need+'.</p><button onclick="helpVisitor(\''+v.id+'\')">Speak to visitor</button></div>';
+}
+function touchObject(o){
+ tick(1);
+ if(PICKUPS[o]){openContainer(o);return}
+ let low=o.toLowerCase();
+ if(low.includes('patient')||low.includes('bed')||low.includes('cot')){
+  let p=G.patients.find(p=>alive(p)&&p.room===G.loc);if(p){patientView(p.id);return}
+ }
+ if(low.includes('water jug')){
+  if(G.held==='Cup'){G.held='Water Cup';play('waterPour','You filled the cup with water from the water jug.')}
+  else play('beep','You need to be holding an empty cup to fill it from the water jug.');
+  placeView();return;
+ }
+ if(low.includes('phone'))play('phone','Phone checked in '+G.loc+'. If it rings for a result or urgent call, it will explain why.');
+ else if(low.includes('monitor'))play('monitor','Monitor checked in '+G.loc+'. Any alarm will name the patient and reason.');
+ else if(low.includes('call bell'))play('callBell','Call bell tested. Real call bells explain who called and what they need.');
+ else if(low.includes('crash'))play('trolley','Crash trolley checked and ready for emergencies.');
+ else if(low.includes('defibrillator'))play('defib','Defibrillator checked.');
+ else if(low.includes('computer')||low.includes('board')||low.includes('desk')||low.includes('station')){play('keyboard','You reviewed hospital information at '+o+'.');informationView();return}
+ else if(low.includes('trolley'))play('trolley','You moved the trolley.');
+ else if(low.includes('toilet'))play('toilet','You checked the toilet area.');
+ else if(low.includes('shower'))play('shower','You checked the shower.');
+ else if(low.includes('bin')){if(G.held){play('ding','You disposed of '+plainItem(G.held)+' safely.');G.held=null}else play('ding','The bin is empty.')}
+ else play('ding','You touched '+o+'.');
+ placeView();
+}
+function openContainer(o){
+ let items=PICKUPS[o];
+ app.innerHTML='<div class="card"><h2>'+o+'</h2><p class="held">Holding: '+(G.held||'nothing')+'</p><p>Choose an item to pick up.</p><div class="grid">'+items.map(i=>'<button onclick="pickItem(\''+esc(i)+'\')">Pick up '+plainItem(i)+' ('+(G.stock[i]??'available')+')</button>').join('')+'</div><button onclick="placeView()">Close '+o+'</button></div>';
+}
+function pickItem(item){
+ if(G.held){play('beep','You are already holding '+plainItem(G.held)+'. Put it down or put it in your bag first.');return}
+ if((G.stock[item]??1)<=0){play('beep',plainItem(item)+' is out of stock.');return}
+ if(G.stock[item]!=null)G.stock[item]--;
+ G.held=item;play(ITEM_SOUND[item]||'ding','You picked up '+plainItem(item)+'.');
+ openContainer(findContainerFor(item)||'cup shelf');
+}
+function findContainerFor(item){return Object.keys(PICKUPS).find(k=>PICKUPS[k].includes(item))}
+function plainItem(i){return {'Water Cup':'water','Juice Cup':'juice','Tea Cup':'tea','Coffee Cup':'coffee','Sick Bowl':'sick bowl','Sick Bag':'sick bag','Medication Basket':'medication basket','Baby Blanket':'baby blanket','Phone Charger':'phone charger','Meal Tray':'meal tray','Pulse Oximeter':'pulse oximeter','Blood Pressure Machine':'blood pressure machine','Blood Glucose Monitor':'blood glucose monitor','Sample Pot':'sample pot','Medical Torch':'medical torch','Senior Doctor':'senior doctor','IV Fluids':'IV fluids','CT Scan':'CT scan','Blood Test':'blood test','Urine Test':'urine test'}[i]||String(i).toLowerCase()}
+function moveTo(place){
+ if(place==='Back to previous place')place=G.previousLoc||'Adult Ward Corridor';
+ G.previousLoc=G.loc;G.loc=place;
+ play(place.includes('Lift Lobby')?'ding':'door');
+ tick(2);speak('You are in '+place);placeView();
+}
+
+function patientView(pid){
+ let p=G.patients.find(x=>x.id===pid);if(!p)return;
+ G.loc=p.room;status();
+ let obj=(WORLD[p.room]&&WORLD[p.room].objects)||[];
+ app.innerHTML='<div class="card patient '+(p.condition>85?'critical':p.condition>60?'urgent':'stable')+'"><h2>'+p.name+'</h2><p>Age '+p.age+'. '+p.room+'. Condition '+p.condition+'/100. Pain '+p.pain+'/10.</p><p>Illness clues: '+p.symptoms.join(', ')+'.</p><p>Needs: '+(p.needs.map(plainItem).join(', ')||'nothing right now')+'. Allergy: '+p.allergy+'. Family: '+p.family+'.</p><p>Latest observations: '+obsText(p)+'</p><p>Care memory: helped '+p.memory.helped+', reassured '+p.memory.reassured+', ignored '+p.memory.ignored+'.</p><p class="held">You are holding: '+(G.held||'nothing')+'</p><h3>Type what you want to say</h3><textarea id="talk" placeholder="Example: I will be right back with water. How bad is your pain?"></textarea><div class="row"><button class="smallButton" onclick="talkPatient(\''+p.id+'\')">Say this</button><button class="smallButton" onclick="listenPatient(\''+p.id+'\')">Listen</button><button class="smallButton" onclick="useHeldWithPatient(\''+p.id+'\')">Use held item</button><button class="smallButton" onclick="examineWithHeld(\''+p.id+'\')">Use held equipment</button><button class="smallButton" onclick="orderUsefulTest(\''+p.id+'\')">Order useful test</button></div><p id="reply"></p></div>'
+ +'<div class="card"><h3>Nearby objects</h3><div class="grid">'+obj.map(o=>'<button onclick="touchObject(\''+esc(o)+'\')">'+o+'</button>').join('')+'</div></div>'
+ +'<div class="card"><h3>Notes</h3>'+(p.notes.length?p.notes.map(n=>'<p>'+n+'</p>').join(''):'<p>No notes yet.</p>')+'<button onclick="placeView()">Back to room</button></div>';
+ listenPatient(pid);
+}
+function obsText(p){if(!p.obs)return 'not checked yet';return 'temperature '+p.obs.temp+', oxygen '+p.obs.oxygen+' percent, pulse '+p.obs.pulse+', blood pressure '+p.obs.bp+', checked '+p.obs.at}
+function listenPatient(pid){let p=G.patients.find(x=>x.id===pid);if(!p)return;let s=p.sounds.length?rnd(p.sounds):(p.condition>80?'breath':'ding');play(s,'You listened to '+p.name+'. '+rnd(p.speech||['They seem unwell.']))}
+function talkPatient(pid){
+ let p=G.patients.find(x=>x.id===pid),q=document.getElementById('talk').value.toLowerCase();tick(2);
+ let ans='';
+ if(q.includes('water')||q.includes('drink'))ans=p.needs.includes('Water Cup')?'Yes please, I really would like some water.':'I am okay for a drink right now, thank you.';
+ else if(q.includes('right back')||q.includes('be right back'))ans='Okay doctor. Thank you for telling me.';
+ else if(q.includes('sick')||q.includes('vomit'))ans=p.symptoms.includes('vomiting')||p.symptoms.includes('feeling sick')?'I feel sick. Please keep a sick bowl or bag nearby.':'I do not feel sick right now.';
+ else if(q.includes('pain'))ans='My pain is '+p.pain+' out of 10. '+(p.pain>6?'It is hard to cope with.':'It is manageable.');
+ else if(q.includes('breath')||q.includes('chest'))ans=p.symptoms.some(s=>s.includes('breath')||s.includes('chest')||s.includes('wheez'))?'My breathing feels difficult and my chest feels uncomfortable.':'My breathing is okay at the moment.';
+ else if(q.includes('allerg'))ans='My recorded allergy is '+p.allergy+'.';
+ else if(q.includes('family'))ans='My family note says '+p.family+'.';
+ else if(q.includes('scared')||q.includes('worried')||q.includes('explain')){ans='Thank you for explaining. That helps me feel safer.';p.memory.reassured++}
+ else ans=p.memory.helped>0?'Thank you for coming back. '+rnd(p.speech||['I still feel unwell.']):rnd(p.speech||['I feel unwell.']);
+ document.getElementById('reply').textContent=p.name+': '+ans;speak(ans);p.lastSpoken=ans;addLog('You spoke with '+p.name+'.');
+}
+function useHeldWithPatient(pid){
+ let p=G.patients.find(x=>x.id===pid);if(!G.held){play('beep','You are not holding anything.');return}
+ let item=G.held;
+ let helps=['Water Cup','Juice Cup','Tea Cup','Coffee Cup','Meal Tray','Sandwich','Toast','Crackers','Snack','Tissues','Blanket','Pillow','Towel','Sick Bowl','Sick Bag','Phone Charger','Bottle','Formula','Baby Blanket','Nappies','Baby Wipes','Wet Wipes','Book','Magazine','Earplugs','Eye Mask','Oxygen','Inhaler','IV Fluids','Antibiotics','Anti-Sickness','Emergency Medication','Reassurance','Midwife','Senior Doctor','Crash Trolley','Pain Relief','Bandage','Food'];
+ if(!helps.includes(item)){play('beep',plainItem(item)+' is not something you can give directly to the patient.');return}
+ G.held=null;p.needs=p.needs.filter(n=>n!==item&&plainItem(n)!==plainItem(item));p.completed.push(item);p.comfort=Math.min(100,p.comfort+12);p.memory.helped++;G.stats.comforts++;
+ if(['Water Cup','Juice Cup','Tea Cup','Coffee Cup'].includes(item))p.thirst=Math.max(0,p.thirst-42);
+ if(['Meal Tray','Sandwich','Toast','Crackers','Snack','Food'].includes(item))p.hunger=Math.max(0,p.hunger-42);
+ if(item==='Sick Bowl'||item==='Sick Bag')p.condition=Math.max(1,p.condition-2);
+ if(p.treat.includes(item)){p.condition=Math.max(2,p.condition-10);p.treatmentStarted=true}
+ if(item==='Midwife'&&p.pregnant&&p.labour>85){deliverBaby(p)}
+ if(item==='Crash Trolley'){p.condition=Math.max(15,p.condition-15);G.stats.emergencies++}
+ if(item==='Senior Doctor'){p.diagnosed=true;p.condition=Math.max(5,p.condition-8)}
+ play(ITEM_SOUND[item]||'ding','You gave '+plainItem(item)+' to '+p.name+'.');
+ note(p,'Given '+plainItem(item)+'.');
+ if(p.condition<35&&p.treatmentStarted)play('bell',p.name+' is improving and may soon be ready for discharge.','good');
+ patientView(pid);
+}
+function examineWithHeld(pid){
+ let p=G.patients.find(x=>x.id===pid);let item=G.held;if(!item){play('beep','You are not holding any equipment.');return}
+ if(item==='Thermometer'){let val=p.symptoms.includes('fever')?(38+Math.random()*2).toFixed(1)+' degrees C':'36.8 degrees C';play('beep','Temperature for '+p.name+': '+val+'.');note(p,'Temperature: '+val+'.');p.obs.temp=val;G.stats.exams++}
+ else if(item==='Pulse Oximeter'){let val=p.symptoms.some(s=>s.includes('breath')||s.includes('wheez'))?(88+r(8))+' percent':(96+r(3))+' percent';play('beep','Oxygen level for '+p.name+': '+val+'.');note(p,'Oxygen: '+val+'.');p.obs.oxygen=val;G.stats.exams++}
+ else if(item==='Blood Pressure Machine'){let val=rnd(['120 over 80','140 over 90','95 over 60','160 over 100']);play('beep','Blood pressure for '+p.name+': '+val+'.');note(p,'Blood pressure: '+val+'.');p.obs.bp=val;G.stats.exams++}
+ else if(item==='Blood Glucose Monitor'){let val=rnd(['normal','low','high']);play('beep','Blood sugar for '+p.name+': '+val+'.');note(p,'Blood sugar: '+val+'.');G.stats.exams++}
+ else if(item==='Stethoscope'){play(p.symptoms.some(s=>s.includes('wheez'))?'wheezy':'breath','You listened to '+p.name+' with the stethoscope.');note(p,'Chest listened to. Findings match '+p.symptoms.join(', ')+'.');G.stats.exams++}
+ else if(item==='Medication Basket'){giveMedication(p)}
+ else if(item==='Sample Pot'){G.held=null;G.results.push({patient:p.name,text:'sample result supports '+p.illness});play('trolley','Sample collected from '+p.name+' and sent to the lab.');note(p,'Sample collected and sent to lab.');G.stats.tests++}
+ else{play('beep',plainItem(item)+' is not examination equipment.');return}
+ patientView(pid);
+}
+function giveMedication(p){
+ if(p.allergy==='Penicillin'&&Math.random()<.5){play('phone','Pharmacy warning: '+p.name+' has a penicillin allergy. Review medication before giving antibiotics.');note(p,'Medication paused because of allergy warning.');return}
+ play('pill','Medication given to '+p.name+'.');p.treatmentStarted=true;p.condition=Math.max(3,p.condition-(12+r(10)));p.comfort=Math.min(100,p.comfort+8);p.diagnosed=true;G.stats.treated++;note(p,'Medication given. Condition improved.');
+}
+function orderUsefulTest(pid){
+ let p=G.patients.find(x=>x.id===pid);if(!p)return;
+ let test=p.tests&&p.tests.length?rnd(p.tests):'Blood Test';
+ G.results.push({patient:p.name,text:test+' result supports '+p.illness});
+ G.stats.tests++;
+ play('keyboard',test+' ordered for '+p.name+'. Results will arrive by phone.','good');
+ note(p,test+' ordered.');
+ patientView(pid);
+}
+function deliverBaby(p){
+ if(!p.pregnant)return;
+ p.pregnant=false;p.condition=Math.max(15,p.condition-15);
+ G.stats.births++;
+ let baby=makePatient(false,'newborn check');baby.room='Nursery';baby.dept='Maternity Corridor';baby.status='Admitted';
+ play('baby','Birth: '+p.name+' has delivered a baby. The newborn is in the nursery for checks.','good');
+ note(p,'Baby delivered safely.');
+}
+function note(p,t){p.notes.unshift(timeText()+': '+t);addLog(p.name+': '+t)}
+function dischargeAuto(p){p.status='Discharged';G.stats.discharged++;G.stats.treated++;G.reputation=Math.min(100,G.reputation+1);play('bell',p.name+' was discharged after improving.','good')}
+
+function informationView(){
+ let open=G.concerns.filter(t=>!t.done);
+ app.innerHTML='<div class="card"><h2>Hospital boards and information</h2><p>This is what you see when you check a board, desk or computer.</p><button onclick="placeView()">Back</button></div>'
+ +(open.length?open.slice(0,35).map(t=>'<div class="card '+(t.priority==='urgent'?'patient critical':'')+'"><h3>'+t.text+'</h3><p>Created '+t.created+'. Priority '+t.priority+'.</p><button onclick="goConcern(\''+t.id+'\')">Go there</button><button onclick="delegateConcern(\''+t.id+'\')">Ask colleague to handle it</button><button onclick="finishConcern(\''+t.id+'\')">Mark resolved</button></div>').join(''):'<div class="card"><p>No open concerns on the board.</p></div>');
+}
+function goConcern(tid){let t=G.concerns.find(x=>x.id===tid),p=t&&G.patients.find(x=>x.id===t.pid);if(p){moveTo(p.room);patientView(p.id)}else placeView()}
+function finishConcern(tid){let t=G.concerns.find(x=>x.id===tid);if(t){t.done=true;addLog('Concern resolved: '+t.text+'.','good');G.reputation=Math.min(100,G.reputation+.3)}informationView()}
+function delegateConcern(tid){
+ let t=G.concerns.find(x=>x.id===tid),s=G.staff.find(x=>!x.busy&&x.energy>20)||rnd(G.staff);
+ if(t&&s){s.busy=true;s.task=t.text;play('phone','You asked '+s.name+' to handle: '+t.text+'.');setTimeout(()=>{t.done=true;s.busy=false;s.task='available';s.energy=Math.max(0,s.energy-8);addLog(s.name+' completed delegated concern: '+t.text+'.','good');save();render()},4000)}
+ informationView();
+}
+function talkStaff(id){let s=G.staff.find(x=>x.id===id);if(!s)return;let line=s.role.includes('nurse')?'I can help with observations, comfort checks and call bells.':s.role.includes('senior')?'Call me if you are worried about a diagnosis or deterioration.':s.role.includes('porter')?'I can move patients and equipment when needed.':s.role.includes('pharmacist')?'I can warn you about medication safety.':'I am available if you need help.';s.relationships++;play('ding',s.name+' says: '+line)}
+function staffView(){app.innerHTML='<div class="card"><h2>Colleagues</h2><button onclick="placeView()">Back</button></div>'+G.staff.map((s,i)=>'<div class="card"><h3>'+s.name+'</h3><p>'+s.role+'. Location '+s.loc+'. Energy '+Math.round(s.energy)+'. Hunger '+Math.round(s.hunger)+'. Thirst '+Math.round(s.thirst)+'. Task: '+s.task+'. Relationship '+s.relationships+'.</p><button onclick="sendBreak('+i+')">Send on break</button><button onclick="moveTo(\''+esc(s.loc)+'\')">Go to '+s.name+'</button></div>').join('')}
+function sendBreak(i){let s=G.staff[i];s.energy=Math.min(100,s.energy+25);s.hunger=Math.max(0,s.hunger-35);s.thirst=Math.max(0,s.thirst-35);s.morale=Math.min(100,s.morale+6);play('tea',s.name+' took a break.');staffView()}
+function helpVisitor(idv){let v=G.visitors.find(x=>x.id===idv);if(!v)return;play(v.need==='a drink'?'drink':'ding','You helped visitor '+v.name+' with '+v.need+'.');G.visitors=G.visitors.filter(x=>x.id!==idv);G.reputation=Math.min(100,G.reputation+.5);placeView()}
+function bagView(){app.innerHTML='<div class="card"><h2>Bag</h2><p>Holding: '+(G.held||'nothing')+'</p><p>Bag: '+(G.bag.map(plainItem).join(', ')||'empty')+'</p><button onclick="storeHeld()">Put held item in bag</button><button onclick="takeFromBagView()">Take item from bag</button><button onclick="placeView()">Back</button></div>'}
+function storeHeld(){if(!G.held){play('beep','You are not holding anything.');bagView();return}if(['Blanket','Pillow','Towel','Wheelchair','Blood Pressure Machine'].includes(G.held)){play('beep',plainItem(G.held)+' is too large for the bag.');bagView();return}if(G.bag.length>=8){play('beep','Your bag is full.');bagView();return}G.bag.push(G.held);play('paper2','You put '+plainItem(G.held)+' in your bag.');G.held=null;bagView()}
+function takeFromBagView(){app.innerHTML='<div class="card"><h2>Take from bag</h2>'+(G.bag.length?G.bag.map((x,i)=>'<button onclick="takeBag('+i+')">Take '+plainItem(x)+'</button>').join(''):'<p>Bag empty.</p>')+'<button onclick="bagView()">Back</button></div>'}
+function takeBag(i){if(G.held){play('beep','You are already holding '+plainItem(G.held)+'.');takeFromBagView();return}G.held=G.bag.splice(i,1)[0];play('paper2','You took '+plainItem(G.held)+' from your bag.');bagView()}
+function putDown(){if(!G.held){addLog('You are not holding anything.');placeView();return}play('ding','You put down '+plainItem(G.held)+'.');G.held=null;placeView()}
+function routineView(){app.innerHTML='<div class="card"><h2>Hospital routines</h2><p>These happen automatically whether you help or not.</p>'+ROUTINES.map(r=>'<p>'+r.time+' - '+r.name+'</p>').join('')+'<button onclick="placeView()">Back</button></div>'}
+function statsView(){app.innerHTML='<div class="card"><h2>Career</h2><p>Reputation '+Math.round(G.reputation)+'%.</p><p>Patients treated '+G.stats.treated+'. Discharged '+G.stats.discharged+'. Births '+G.stats.births+'. Deaths '+G.stats.deaths+'. Emergencies '+G.stats.emergencies+'. Ambulances '+G.stats.ambulances+'. Surgeries '+G.stats.surgeries+'. Tests '+G.stats.tests+'. Transfers '+G.stats.transfers+'. Comfort actions '+G.stats.comforts+'. Examinations '+G.stats.exams+'. Staff helped independently '+G.stats.staffHelped+'. Routines run '+G.stats.routines+'.</p><p>Your needs: energy '+Math.round(G.player.energy)+', hunger '+Math.round(G.player.hunger)+', thirst '+Math.round(G.player.thirst)+', morale '+Math.round(G.player.morale)+'.</p><p>Achievements: '+(G.achievements.join(', ')||'none yet')+'</p><button onclick="playerBreak()">Eat, drink and rest briefly</button><button onclick="settingsView()">Settings</button><button onclick="placeView()">Back</button></div>'}
+function playerBreak(){G.player.energy=Math.min(100,G.player.energy+25);G.player.hunger=Math.max(0,G.player.hunger-40);G.player.thirst=Math.max(0,G.player.thirst-40);G.player.morale=Math.min(100,G.player.morale+5);play('tea','You took a short break.');statsView()}
+function settingsView(){app.innerHTML='<div class="card"><h2>Settings</h2><button onclick="audioOn=!audioOn;settingsView()">Sound: '+(audioOn?'On':'Off')+'</button><button onclick="G.settings.voice=!G.settings.voice;save();settingsView()">Voice explanations: '+(G.settings.voice?'On':'Off')+'</button><button onclick="save();play(\'ding\',\'Game saved.\');placeView()">Save</button><button onclick="resetGame()">Reset hospital save</button><button onclick="placeView()">Back</button></div>'}
+function resetGame(){if(confirm('Reset the whole hospital?')){localStorage.removeItem('hospitalFullLivingSave');G=clone(DEFAULT);init();render()}}
+
+function runCommand(){
+ let q=(document.getElementById('commandBox').value||'').toLowerCase().trim();
+ if(!q){play('beep','Type a command first.');return}
+ let places=Object.keys(WORLD);
+ let place=places.find(p=>q.includes(p.toLowerCase()));
+ if((q.startsWith('go')||q.includes('go to')||q.includes('walk to')||q.includes('move to'))&&place){moveTo(place);return}
+ let obj=(WORLD[G.loc].objects||[]).find(o=>q.includes(o.toLowerCase()));
+ if((q.includes('open')||q.includes('touch')||q.includes('check')||q.includes('use'))&&obj){touchObject(obj);return}
+ let patient=G.patients.find(p=>alive(p)&&q.includes(p.name.toLowerCase().split(' ')[0]));
+ if(patient&&q.includes('ask')){patientView(patient.id);return}
+ if(q.includes('bag')){bagView();return}
+ if(q.includes('routines')){routineView();return}
+ if(q.includes('board')||q.includes('concern')){informationView();return}
+ if(q.includes('wait')||q.includes('stand')){tick(30);placeView();return}
+ play('beep','I could not understand that command yet. Try go to supply room, open cup shelf, check board, or interact with a patient.');
+}
+function checkAchievements(){
+ const a=(name,cond)=>{if(cond&&!G.achievements.includes(name)){G.achievements.push(name);play('bell','Achievement unlocked: '+name+'.','good')}};
+ a('First patient treated',G.stats.treated>=1);
+ a('First emergency handled',G.stats.emergencies>=1);
+ a('First ambulance received',G.stats.ambulances>=1);
+ a('First birth',G.stats.births>=1);
+ a('First surgery',G.stats.surgeries>=1);
+ a('Hundred patients treated',G.stats.treated>=100);
+ a('Trusted doctor',G.reputation>=90);
+}
+setInterval(()=>{if(G.started){tick(1);status()}},60000);
+
+window.start=start;window.render=render;window.placeView=placeView;window.touchObject=touchObject;window.openContainer=openContainer;window.pickItem=pickItem;window.moveTo=moveTo;window.patientView=patientView;window.listenPatient=listenPatient;window.talkPatient=talkPatient;window.useHeldWithPatient=useHeldWithPatient;window.examineWithHeld=examineWithHeld;window.orderUsefulTest=orderUsefulTest;window.informationView=informationView;window.goConcern=goConcern;window.finishConcern=finishConcern;window.delegateConcern=delegateConcern;window.staffView=staffView;window.sendBreak=sendBreak;window.helpVisitor=helpVisitor;window.bagView=bagView;window.storeHeld=storeHeld;window.takeFromBagView=takeFromBagView;window.takeBag=takeBag;window.putDown=putDown;window.routineView=routineView;window.statsView=statsView;window.playerBreak=playerBreak;window.settingsView=settingsView;window.resetGame=resetGame;window.talkStaff=talkStaff;window.runCommand=runCommand;
+render();
+</script>
+</main>
+</body>
+</html>
